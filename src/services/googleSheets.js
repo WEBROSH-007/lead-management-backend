@@ -4,16 +4,46 @@ const path = require("path");
 
 let auth;
 
+function parseJson(raw) {
+  if (!raw) return null;
+
+  const trimmed = raw.trim();
+  const unquoted =
+    trimmed.startsWith("'") && trimmed.endsWith("'")
+      ? trimmed.slice(1, -1)
+      : trimmed;
+
+  return JSON.parse(unquoted);
+}
+
 function loadGoogleCredentials() {
-  if (process.env.GOOGLE_CREDENTIALS) {
-    return JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  const jsonEnvKeys = [
+    "GOOGLE_CREDENTIALS",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+  ];
+
+  for (const key of jsonEnvKeys) {
+    if (process.env[key]) {
+      return parseJson(process.env[key]);
+    }
+  }
+
+  if (process.env.GOOGLE_CREDENTIALS_BASE64) {
+    const decoded = Buffer.from(
+      process.env.GOOGLE_CREDENTIALS_BASE64,
+      "base64",
+    ).toString("utf8");
+    return parseJson(decoded);
   }
 
   if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
     return {
       type: "service_account",
+      project_id: process.env.GOOGLE_PROJECT_ID,
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
       private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      token_uri: "https://oauth2.googleapis.com/token",
     };
   }
 
@@ -31,7 +61,11 @@ try {
 
   if (!credentials) {
     console.warn(
-      "GOOGLE_CREDENTIALS not found. Provide GOOGLE_CREDENTIALS JSON, or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY, or credentials.json",
+      "Google credentials not found. Set GOOGLE_CREDENTIALS / GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_APPLICATION_CREDENTIALS_JSON / GOOGLE_CREDENTIALS_BASE64, or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY, or credentials.json",
+    );
+  } else {
+    console.log(
+      `Google credentials loaded for ${credentials.client_email || "service-account"}`,
     );
   }
 
@@ -90,7 +124,11 @@ exports.addToSheet = async (lead) => {
 
     return rowNumber;
   } catch (error) {
-    console.error("Sheet Insert Error:", error.message);
+    const details =
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error ||
+      error.message;
+    console.error("Sheet Insert Error:", details);
     return null;
   }
 };
@@ -109,6 +147,10 @@ exports.updateSheetStatus = async (rowId, status) => {
       },
     });
   } catch (error) {
-    console.error("Sheet Update Error:", error.message);
+    const details =
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error ||
+      error.message;
+    console.error("Sheet Update Error:", details);
   }
 };
