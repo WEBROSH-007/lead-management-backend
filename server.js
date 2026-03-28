@@ -8,6 +8,8 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("DB connected");
 
+    await sequelize.sync(); // ⭐ THIS LINE CREATES TABLE
+
     const PORT = process.env.PORT || 5000;
 
     app.listen(PORT, () => {
