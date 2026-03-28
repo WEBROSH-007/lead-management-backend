@@ -1,14 +1,38 @@
 const { google } = require("googleapis");
+const fs = require("fs");
+const path = require("path");
 
 let auth;
 
+function loadGoogleCredentials() {
+  if (process.env.GOOGLE_CREDENTIALS) {
+    return JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  }
+
+  if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+    return {
+      type: "service_account",
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    };
+  }
+
+  const credentialsPath = path.resolve(process.cwd(), "credentials.json");
+  if (fs.existsSync(credentialsPath)) {
+    const fileData = fs.readFileSync(credentialsPath, "utf8");
+    return JSON.parse(fileData);
+  }
+
+  return null;
+}
+
 try {
-  const credentials = process.env.GOOGLE_CREDENTIALS
-    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
-    : null;
+  const credentials = loadGoogleCredentials();
 
   if (!credentials) {
-    console.warn("⚠️ GOOGLE_CREDENTIALS not found");
+    console.warn(
+      "GOOGLE_CREDENTIALS not found. Provide GOOGLE_CREDENTIALS JSON, or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY, or credentials.json",
+    );
   }
 
   auth = new google.auth.GoogleAuth({
@@ -16,7 +40,7 @@ try {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
 } catch (err) {
-  console.error("❌ Google Credentials Error:", err.message);
+  console.error("Google Credentials Error:", err.message);
 }
 
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
@@ -25,6 +49,10 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 async function getSheetsInstance() {
   if (!auth) {
     throw new Error("Google Auth not initialized");
+  }
+
+  if (!SPREADSHEET_ID) {
+    throw new Error("SPREADSHEET_ID is not set");
   }
 
   const client = await auth.getClient();
@@ -62,7 +90,7 @@ exports.addToSheet = async (lead) => {
 
     return rowNumber;
   } catch (error) {
-    console.error("❌ Sheet Insert Error:", error.message);
+    console.error("Sheet Insert Error:", error.message);
     return null;
   }
 };
@@ -81,6 +109,6 @@ exports.updateSheetStatus = async (rowId, status) => {
       },
     });
   } catch (error) {
-    console.error("❌ Sheet Update Error:", error.message);
+    console.error("Sheet Update Error:", error.message);
   }
 };
