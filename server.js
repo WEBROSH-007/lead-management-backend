@@ -6,13 +6,15 @@ require("./src/models/Lead");
 const startServer = async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync({ alter: true });
+    console.log("DB connected");
 
-    app.listen(process.env.PORT, () =>
-      console.log(`Server running on ${process.env.PORT}`),
-    );
+    const PORT = process.env.PORT || 5000;
+
+    app.listen(PORT, () => {
+      console.log(`Server running on ${PORT}`);
+    });
   } catch (err) {
-    console.error("Database connection failed:", err.message);
+    console.error("Server error:", err);
     process.exit(1);
   }
 };

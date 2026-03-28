@@ -1,13 +1,32 @@
 const { google } = require("googleapis");
 
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
+let auth;
 
-const SPREADSHEET_ID = "1VFGbzaiRCyWO1aaz8Epw3Oae6jMUHrpHiiNWz3zY64w";
+try {
+  const credentials = process.env.GOOGLE_CREDENTIALS
+    ? JSON.parse(process.env.GOOGLE_CREDENTIALS)
+    : null;
 
+  if (!credentials) {
+    console.warn("⚠️ GOOGLE_CREDENTIALS not found");
+  }
+
+  auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+} catch (err) {
+  console.error("❌ Google Credentials Error:", err.message);
+}
+
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+
+// 🔧 Helper to get sheets instance
 async function getSheetsInstance() {
+  if (!auth) {
+    throw new Error("Google Auth not initialized");
+  }
+
   const client = await auth.getClient();
   return google.sheets({ version: "v4", auth: client });
 }
@@ -19,17 +38,15 @@ exports.addToSheet = async (lead) => {
 
     const values = [
       [
-        lead.name || "",
-        lead.email || "",
-        lead.phone || "",
-        lead.course || "",
-        lead.college || "",
-        lead.year || "",
-        lead.status || "new",
-        lead.created_at
-          ? new Date(lead.created_at).toLocaleString()
-          : new Date().toLocaleString(),
-        "", // reminder column
+        lead.name,
+        lead.email,
+        lead.phone,
+        lead.course,
+        lead.college,
+        lead.year,
+        lead.status,
+        lead.created_at,
+        "",
       ],
     ];
 
@@ -40,15 +57,12 @@ exports.addToSheet = async (lead) => {
       resource: { values },
     });
 
-    // Extract row number
     const updatedRange = response.data.updates.updatedRange;
     const rowNumber = updatedRange.match(/\d+/)[0];
 
-    console.log(`✅ Lead added to Sheet at row ${rowNumber}:`, lead.email);
     return rowNumber;
   } catch (error) {
     console.error("❌ Sheet Insert Error:", error.message);
-    console.error("Full Error:", error);
     return null;
   }
 };
@@ -60,16 +74,13 @@ exports.updateSheetStatus = async (rowId, status) => {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sheet1!G${rowId}`, // G = status column
+      range: `Sheet1!G${rowId}`,
       valueInputOption: "USER_ENTERED",
       resource: {
         values: [[status]],
       },
     });
-
-    console.log(`✅ Status updated in Sheet at row ${rowId} to: ${status}`);
   } catch (error) {
     console.error("❌ Sheet Update Error:", error.message);
-    console.error("Full Error:", error);
   }
 };
